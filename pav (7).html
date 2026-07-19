@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PAV — Turn Your Notes Into Handwritten Pages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&family=Kalam:wght@400;700&family=Caveat:wght@500;700&family=Shadows+Into+Light&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
+<style>
+:root{
+  --bg: #0E0C16; --bg-alt: #15121F; --panel: #1B1828; --panel-line: rgba(255,255,255,0.07);
+  --text: #ECE8F6; --text-soft: #9891AE;
+  --gold: #CDA653; --gold-soft: rgba(205,166,83,0.14);
+  --violet: #8B7FE0; --violet-soft: rgba(139,127,224,0.14);
+  --green: #5FB98A; --red: #D46A5C;
+  --serif: 'Fraunces', serif; --mono: 'JetBrains Mono', monospace; --sans: 'Inter', sans-serif;
+  --hand1: 'Kalam', cursive; --hand2: 'Caveat', cursive; --hand3: 'Shadows Into Light', cursive;
+}
+*{ box-sizing: border-box; }
+html{ scroll-behavior: smooth; }
+body{ margin:0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height:1.5; -webkit-font-smoothing:antialiased; }
+@media (prefers-reduced-motion: reduce){ *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; } }
+a{ color:inherit; }
+.wrap{ max-width:1180px; margin:0 auto; padding:0 28px; }
+section{ padding:90px 0; }
+@media(max-width:720px){ section{ padding:56px 0; } .wrap{ padding:0 20px; } }
+
+nav{ position:sticky; top:0; z-index:50; backdrop-filter:blur(14px); background:rgba(14,12,22,0.72); border-bottom:1px solid var(--panel-line); }
+.nav-inner{ display:flex; align-items:center; justify-content:space-between; padding:18px 28px; max-width:1180px; margin:0 auto; }
+.brand{ font-family: var(--serif); font-weight:600; font-size:19px; }
+.nav-links{ display:flex; gap:32px; font-size:14px; color: var(--text-soft); }
+.nav-links a:hover{ color: var(--text); }
+.nav-cta{ font-family: var(--sans); font-weight:600; font-size:13.5px; background: var(--gold); color:#20180a; padding:10px 18px; border-radius:7px; border:none; cursor:pointer; }
+@media(max-width:720px){ .nav-links{ display:none; } }
+
+.hero{ position:relative; padding:110px 0 70px; overflow:hidden; text-align:center; }
+#bgCanvas{ position:absolute; inset:0; width:100%; height:100%; opacity:0.5; pointer-events:none; }
+.hero-inner{ position:relative; z-index:2; }
+.eyebrow{ font-family: var(--mono); font-size:11.5px; letter-spacing:3px; text-transform:uppercase; color: var(--violet); border:1px solid var(--violet-soft); background: var(--violet-soft); display:inline-flex; padding:7px 16px; border-radius:999px; margin-bottom:28px; }
+.headline{ font-size: clamp(36px,5.6vw,62px); font-weight:600; line-height:1.1; margin:0 0 22px; max-width:820px; margin-left:auto; margin-right:auto; }
+.morph-word{ position:relative; display:inline-block; }
+.morph-layer.mono-l{ font-family: var(--mono); color: var(--violet); font-weight:500; letter-spacing:-1px; animation: showMono 6s infinite; }
+.morph-layer.hand-l{ font-family: var(--hand1); color: var(--gold); font-weight:700; position:absolute; left:0; top:0; animation: showHand 6s infinite; }
+@keyframes showMono{ 0%,40%{opacity:1;} 55%,100%{opacity:0;} }
+@keyframes showHand{ 0%,40%{opacity:0;} 55%,100%{opacity:1;} }
+.subhead{ font-size:17px; color: var(--text-soft); max-width:560px; margin:0 auto 34px; }
+.hero-ctas{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+.btn{ font-family: var(--sans); font-weight:600; font-size:14.5px; padding:14px 26px; border-radius:8px; cursor:pointer; border:none; transition: transform .15s ease; }
+.btn:hover{ transform: translateY(-2px); }
+.btn-primary{ background: linear-gradient(135deg, var(--gold), #E4C578); color:#20180a; box-shadow:0 10px 30px rgba(205,166,83,0.25); }
+.btn-ghost{ background:transparent; border:1px solid var(--panel-line); color:var(--text); }
+.btn-ghost:hover{ background: rgba(255,255,255,0.05); }
+.trust-row{ margin-top:50px; font-family: var(--mono); font-size:11px; letter-spacing:2px; color:#615c78; text-transform:uppercase; }
+
+.section-head{ text-align:center; max-width:620px; margin:0 auto 46px; }
+.section-eyebrow{ font-family: var(--mono); font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color: var(--violet); margin-bottom:14px; }
+.section-title{ font-family: var(--serif); font-size: clamp(26px,3.4vw,38px); font-weight:600; margin:0 0 14px; }
+.section-sub{ color: var(--text-soft); font-size:15.5px; }
+
+/* ---------- GENERATOR ---------- */
+.gen-card{ background: var(--panel); border:1px solid var(--panel-line); border-radius:16px; padding:28px; box-shadow:0 30px 60px rgba(0,0,0,0.4); }
+.gen-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:26px; }
+@media(max-width:900px){ .gen-grid{ grid-template-columns:1fr; } }
+.field-label{ font-family: var(--mono); font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; color: var(--text-soft); margin-bottom:8px; display:flex; justify-content:space-between; }
+textarea.input-area{ width:100%; min-height:220px; resize:vertical; background: var(--bg-alt); border:1px solid var(--panel-line); border-radius:10px; padding:16px; color: var(--text); font-family: var(--sans); font-size:14.5px; line-height:1.6; outline:none; }
+textarea.input-area:focus{ border-color: var(--violet); }
+.opt-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:16px 0; }
+.opt-block label{ font-family: var(--mono); font-size:10px; letter-spacing:1px; text-transform:uppercase; color: var(--text-soft); display:block; margin-bottom:6px; }
+select, input[type=color]{ width:100%; background: var(--bg-alt); color: var(--text); border:1px solid var(--panel-line); border-radius:8px; padding:9px 12px; font-family: var(--sans); font-size:13.5px; outline:none; }
+.toggle-row{ display:flex; gap:16px; margin: 6px 0 18px; flex-wrap:wrap; }
+.toggle-row label{ display:flex; align-items:center; gap:7px; font-size:13px; color: var(--text-soft); cursor:pointer; }
+.font-preview{ font-size:18px; margin-top:4px; color: var(--gold); }
+.preview-col{ display:flex; flex-direction:column; align-items:center; }
+.page-preview-wrap{ background: var(--bg-alt); border:1px solid var(--panel-line); border-radius:10px; padding:14px; width:100%; max-height:520px; overflow-y:auto; display:flex; flex-direction:column; align-items:center; gap:16px; }
+.page-preview-wrap canvas{ max-width:100%; box-shadow: 0 12px 30px rgba(0,0,0,0.5); border-radius:2px; }
+.placeholder-note{ color:#565169; font-style:italic; font-size:13.5px; padding: 60px 20px; text-align:center; }
+.demo-actions{ display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+.small-btn{ font-family:var(--sans); font-size:13px; font-weight:600; padding:10px 16px; border-radius:7px; border:1px solid var(--panel-line); background:transparent; color:var(--text); cursor:pointer; }
+.small-btn:hover:not(:disabled){ background: rgba(255,255,255,0.05); }
+.small-btn:disabled{ opacity:0.35; cursor:not-allowed; }
+.page-count-tag{ font-family: var(--mono); font-size:11px; color: var(--text-soft); margin-top:10px; }
+.err{ font-family: var(--mono); font-size:12.5px; color:#f0a99e; background: rgba(212,106,92,0.12); border:1px solid rgba(212,106,92,0.3); padding:10px 14px; border-radius:8px; margin-top:14px; }
+.upload-row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+.upload-btn{ display:inline-flex; align-items:center; gap:7px; }
+.upload-status{ font-family: var(--mono); font-size:11.5px; color: var(--text-soft); }
+.upload-status.busy{ color: var(--violet); }
+.upload-status.ok{ color: var(--green); }
+.disclosure{ max-width:640px; margin:20px auto 0; font-size:12px; color:#615c78; line-height:1.6; text-align:center; }
+
+/* ---------- FEATURES ---------- */
+.feat-grid{ display:grid; grid-template-columns: repeat(3,1fr); gap:18px; }
+@media(max-width:900px){ .feat-grid{ grid-template-columns: repeat(2,1fr); } }
+@media(max-width:600px){ .feat-grid{ grid-template-columns:1fr; } }
+.feat-card{ background: var(--panel); border:1px solid var(--panel-line); border-radius:14px; padding:26px; transition: transform .2s ease, border-color .2s ease; }
+.feat-card:hover{ transform: translateY(-4px); border-color: rgba(205,166,83,0.35); }
+.feat-icon{ font-family: var(--mono); color: var(--gold); font-size:20px; margin-bottom:14px; }
+.feat-title{ font-weight:600; font-size:15.5px; margin-bottom:8px; }
+.feat-desc{ color: var(--text-soft); font-size:13.5px; line-height:1.6; }
+
+.style-chips{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+.chip{ font-size:15px; padding:10px 18px; border-radius:999px; border:1px solid var(--panel-line); color: var(--text); }
+
+.faq-list{ max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:10px; }
+details{ background: var(--panel); border:1px solid var(--panel-line); border-radius:12px; padding:18px 22px; }
+summary{ cursor:pointer; font-weight:600; font-size:14.5px; list-style:none; display:flex; justify-content:space-between; align-items:center; }
+summary::-webkit-details-marker{ display:none; }
+summary::after{ content:"+"; font-family: var(--mono); color: var(--gold); font-size:18px; }
+details[open] summary::after{ content:"–"; }
+.faq-answer{ color: var(--text-soft); font-size:13.5px; margin-top:12px; line-height:1.6; }
+
+/* ---------- CREATOR ---------- */
+#creator{ border-top:1px solid var(--panel-line); }
+.creator-title{
+  background: linear-gradient(180deg, #F1DFB0 0%, var(--gold) 65%, #A8843F 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+.creator-card{ max-width:680px; margin:0 auto; background: var(--panel); border:1px solid var(--panel-line); border-radius:16px; padding:44px 40px; text-align:center; box-shadow:0 30px 60px rgba(0,0,0,0.35); }
+.creator-bio{ color: var(--text-soft); font-size:15.5px; line-height:1.75; margin:0 0 28px; }
+.creator-linkedin-btn{ display:inline-flex; align-items:center; gap:9px; }
+.creator-linkedin-btn svg{ width:17px; height:17px; }
+@media(max-width:600px){ .creator-card{ padding:32px 22px; } }
+
+footer{ border-top:1px solid var(--panel-line); padding:56px 0 40px; text-align:center; }
+.footer-brand{ font-family: var(--serif); font-weight:600; font-size:19px; margin-bottom:8px; }
+.footer-note{ font-family: var(--mono); font-size:10.5px; letter-spacing:1.5px; color:#5a5570; text-transform:uppercase; }
+.footer-contact-label{ font-family: var(--mono); font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color: var(--violet); margin:32px 0 16px; }
+.footer-contact{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-bottom:34px; }
+.contact-pill{ display:inline-flex; align-items:center; gap:9px; font-family: var(--sans); font-size:13.5px; font-weight:600; color: var(--text); background: var(--panel); border:1px solid var(--panel-line); padding:11px 20px; border-radius:999px; text-decoration:none; transition: transform .15s ease, border-color .15s ease, color .15s ease; }
+.contact-pill svg{ width:16px; height:16px; color: var(--gold); flex-shrink:0; }
+.contact-pill:hover{ transform: translateY(-2px); border-color: rgba(205,166,83,0.4); color: var(--gold); }
+.footer-copyright{ font-family: var(--mono); font-size:10.5px; letter-spacing:1px; color:#5a5570; padding-top:22px; border-top:1px solid var(--panel-line); }
+.footer-credit{ font-family: var(--mono); font-size:10.5px; letter-spacing:1px; color:#5a5570; margin-top:10px; display:flex; align-items:center; justify-content:center; gap:5px; }
+.footer-credit .heart-icon{ width:12px; height:12px; color: var(--red); flex-shrink:0; }
+@media(max-width:480px){ .contact-pill{ padding:10px 16px; } .contact-pill span{ font-size:12.5px; } }
+
+/* ---------- FEEDBACK ---------- */
+.feedback-card{ max-width:680px; margin:0 auto; background: var(--panel); border:1px solid var(--panel-line); border-radius:16px; padding:32px; box-shadow:0 30px 60px rgba(0,0,0,0.35); display:flex; flex-direction:column; gap:16px; }
+.feedback-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:600px){ .feedback-row{ grid-template-columns:1fr; } }
+.feedback-field label{ font-family: var(--mono); font-size:10px; letter-spacing:1px; text-transform:uppercase; color: var(--text-soft); display:block; margin-bottom:6px; }
+.feedback-field input{ width:100%; background: var(--bg-alt); color: var(--text); border:1px solid var(--panel-line); border-radius:8px; padding:11px 12px; font-family: var(--sans); font-size:13.5px; outline:none; }
+.feedback-field input:focus{ border-color: var(--violet); }
+.feedback-note{ text-align:center; font-size:12px; color:#615c78; margin:0; }
+
+/* =========================================================
+   VIEW SYSTEM
+   ========================================================= */
+.view{ display:none; opacity:0; }
+.view.active{ display:block; animation: viewIn .45s ease forwards; }
+@keyframes viewIn{ from{ opacity:0; transform: translateY(10px) scale(.995); } to{ opacity:1; transform: translateY(0) scale(1); } }
+
+/* =========================================================
+   FLOATING 3-DOT TOOL MENU
+   ========================================================= */
+.tool-menu{ position:fixed; top:22px; right:26px; z-index:999; perspective:800px; }
+.tool-menu-btn{
+  position:relative; width:48px; height:48px; border-radius:50%; border:1px solid rgba(255,255,255,0.16);
+  background: linear-gradient(145deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
+  backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%);
+  color: var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12);
+  transition: transform .35s cubic-bezier(.2,.9,.3,1.3), box-shadow .35s ease, border-color .35s ease;
+  transform-style: preserve-3d;
+}
+.tool-menu-btn-glow{ position:absolute; inset:-2px; border-radius:50%; background: conic-gradient(from 0deg, var(--gold), var(--violet), var(--green), var(--gold)); opacity:0; filter:blur(8px); transition: opacity .35s ease; z-index:-1; animation: spinGlow 6s linear infinite; }
+@keyframes spinGlow{ to{ transform: rotate(360deg); } }
+.tool-menu-btn:hover{ transform: rotateX(12deg) rotateY(-12deg) translateY(-3px) scale(1.07); border-color: rgba(205,166,83,0.55); box-shadow: 0 16px 34px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18); }
+.tool-menu-btn:hover .tool-menu-btn-glow{ opacity:0.55; }
+.tool-menu-btn:active{ transform: rotateX(4deg) rotateY(-4deg) scale(0.97); }
+.tool-menu.open .tool-menu-btn{ border-color: var(--gold); transform: rotateX(8deg) rotateY(-8deg) scale(1.05); }
+
+.tool-menu-panel{
+  position:absolute; top:60px; right:0; width:300px; padding:10px;
+  border-radius:16px; border:1px solid rgba(255,255,255,0.14);
+  background: linear-gradient(160deg, rgba(27,24,40,0.85), rgba(14,12,22,0.85));
+  backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
+  box-shadow: 0 30px 70px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08);
+  opacity:0; visibility:hidden; transform: translateY(-10px) scale(0.94) rotateX(-6deg); transform-origin: top right;
+  transition: opacity .3s cubic-bezier(.2,.9,.3,1), transform .35s cubic-bezier(.2,.9,.3,1), visibility .3s;
+}
+.tool-menu.open .tool-menu-panel{ opacity:1; visibility:visible; transform: translateY(0) scale(1) rotateX(0deg); }
+.tool-menu-head{ padding:8px 10px 10px; }
+.tool-menu-eyebrow{ font-family: var(--mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color: var(--violet); }
+.tool-menu-item{
+  width:100%; display:flex; align-items:center; gap:12px; text-align:left;
+  background:transparent; border:1px solid transparent; border-radius:11px; padding:11px 10px; margin-bottom:2px;
+  cursor:pointer; color: var(--text); transition: transform .2s ease, background .2s ease, border-color .2s ease;
+}
+.tool-menu-item:hover{ background: rgba(255,255,255,0.06); border-color: var(--panel-line); transform: translateX(3px) scale(1.01); }
+.tool-menu-item.dt-current{ background: var(--gold-soft); border-color: rgba(205,166,83,0.35); }
+.tmi-icon{ width:34px; height:34px; flex-shrink:0; border-radius:9px; background: var(--bg-alt); display:flex; align-items:center; justify-content:center; font-size:15px; }
+.tmi-text{ flex:1; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.tmi-title{ font-size:13.5px; font-weight:600; }
+.tmi-sub{ font-size:11px; color: var(--text-soft); }
+.tmi-status{ font-family: var(--mono); font-size:9px; letter-spacing:0.5px; text-transform:uppercase; padding:3px 8px; border-radius:999px; flex-shrink:0; }
+.tmi-active{ background: rgba(95,185,138,0.16); color: var(--green); }
+.tmi-new{ background: var(--violet-soft); color: var(--violet); }
+.tmi-soon{ background: rgba(255,255,255,0.06); color:#8b869c; }
+@media(max-width:480px){ .tool-menu{ top:14px; right:14px; } .tool-menu-panel{ width:88vw; right:-6px; } }
+
+/* =========================================================
+   DISCIPLINE TRACKER
+   ========================================================= */
+.dt-wrap{ max-width:1180px; margin:0 auto; padding:100px 28px 90px; }
+@media(max-width:720px){ .dt-wrap{ padding:84px 20px 56px; } }
+.dt-back{ font-family: var(--sans); font-size:13px; font-weight:600; background:transparent; border:1px solid var(--panel-line); color: var(--text-soft); padding:8px 14px; border-radius:8px; cursor:pointer; transition: all .2s ease; margin-bottom:22px; }
+.dt-back:hover{ color: var(--text); border-color: var(--gold); transform: translateX(-3px); }
+.dt-topbar-title{ margin-bottom:8px; }
+.dt-heading{ font-family: var(--serif); font-size: clamp(26px,3.6vw,40px); font-weight:600; margin:8px 0 0; background: linear-gradient(135deg, var(--text) 30%, var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+.dt-stats-row{ display:grid; grid-template-columns: repeat(4,1fr); gap:16px; margin:34px 0; }
+@media(max-width:900px){ .dt-stats-row{ grid-template-columns: repeat(2,1fr); } }
+.dt-stat-card{
+  position:relative; background: linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01));
+  border:1px solid var(--panel-line); border-radius:16px; padding:22px; text-align:center;
+  backdrop-filter: blur(10px); transition: transform .35s cubic-bezier(.2,.9,.3,1.2), border-color .3s ease, box-shadow .3s ease;
+  transform-style: preserve-3d;
+}
+.dt-stat-card:hover{ transform: translateY(-6px) rotateX(6deg); border-color: rgba(205,166,83,0.4); box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+.dt-stat-fire{ border-color: rgba(205,166,83,0.35); background: linear-gradient(160deg, var(--gold-soft), rgba(255,255,255,0.01)); }
+.dt-stat-icon{ font-size:22px; margin-bottom:8px; }
+.dt-stat-value{ font-family: var(--serif); font-size:34px; font-weight:600; color: var(--gold); line-height:1; margin-bottom:6px; }
+.dt-stat-label{ font-family: var(--mono); font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color: var(--text-soft); }
+
+.dt-grid{ display:grid; grid-template-columns: 1.3fr 1fr; gap:22px; align-items:start; }
+@media(max-width:980px){ .dt-grid{ grid-template-columns:1fr; } }
+.dt-col{ display:flex; flex-direction:column; gap:22px; }
+.dt-card{ background: var(--panel); border:1px solid var(--panel-line); border-radius:16px; padding:24px; box-shadow:0 20px 50px rgba(0,0,0,0.3); transition: border-color .3s ease; }
+.dt-card:hover{ border-color: rgba(139,127,224,0.3); }
+.dt-card-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:8px; }
+.dt-card-head h3{ font-family: var(--serif); font-size:18px; font-weight:600; margin:0; }
+.dt-date{ font-family: var(--mono); font-size:11px; color: var(--text-soft); }
+
+.dt-progress-outer{ width:100%; height:10px; border-radius:999px; background: var(--bg-alt); overflow:hidden; margin-bottom:18px; border:1px solid var(--panel-line); }
+.dt-progress-inner{ height:100%; border-radius:999px; background: linear-gradient(90deg, var(--violet), var(--gold)); transition: width .6s cubic-bezier(.2,.9,.3,1); box-shadow: 0 0 12px rgba(205,166,83,0.5); }
+
+.dt-habit-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+.dt-habit{ display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:11px; background: var(--bg-alt); border:1px solid var(--panel-line); transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+.dt-habit:hover{ transform: translateX(3px); border-color: rgba(255,255,255,0.16); }
+.dt-habit.done{ background: rgba(95,185,138,0.08); border-color: rgba(95,185,138,0.3); }
+.dt-check{ width:24px; height:24px; border-radius:7px; border:2px solid var(--panel-line); flex-shrink:0; cursor:pointer; display:flex; align-items:center; justify-content:center; transition: all .2s ease; background:transparent; color:transparent; font-size:14px; }
+.dt-check:hover{ border-color: var(--gold); }
+.dt-habit.done .dt-check{ background: var(--green); border-color: var(--green); color:#0E0C16; }
+.dt-habit-name{ flex:1; font-size:14px; min-width:0; overflow-wrap:anywhere; }
+.dt-habit.done .dt-habit-name{ color: var(--text-soft); text-decoration: line-through; }
+.dt-habit-streak{ font-family: var(--mono); font-size:11px; color: var(--gold); white-space:nowrap; }
+.dt-habit-del{ background:transparent; border:none; color:#615c78; cursor:pointer; font-size:15px; padding:2px 6px; transition: color .2s ease, transform .2s ease; }
+.dt-habit-del:hover{ color: var(--red); transform: scale(1.15); }
+.dt-empty-note{ display:none; text-align:center; color:#615c78; font-size:13px; font-style:italic; padding:10px 0 16px; }
+.dt-add-form{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.dt-add-input{ flex:1; min-width:160px; background: var(--bg-alt); border:1px solid var(--panel-line); border-radius:8px; padding:11px 12px; color: var(--text); font-family: var(--sans); font-size:13.5px; outline:none; }
+.dt-add-input:focus{ border-color: var(--violet); }
+.dt-color-picker{ display:flex; gap:7px; }
+.dt-color-dot{ width:20px; height:20px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition: transform .2s ease, border-color .2s ease; display:inline-block; }
+.dt-color-dot:hover{ transform: scale(1.15); }
+.dt-color-dot.selected{ border-color:#fff; transform: scale(1.15); }
+.dt-add-btn{ padding:11px 20px; font-size:13.5px; }
+
+.dt-week-chart{ display:flex; align-items:flex-end; gap:10px; height:140px; padding-top:10px; }
+.dt-week-col{ flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; height:100%; justify-content:flex-end; }
+.dt-week-bar-track{ width:100%; max-width:34px; height:100px; border-radius:8px; background: var(--bg-alt); display:flex; align-items:flex-end; overflow:hidden; border:1px solid var(--panel-line); }
+.dt-week-bar-fill{ width:100%; background: linear-gradient(180deg, var(--gold), var(--violet)); border-radius:8px 8px 0 0; transition: height .7s cubic-bezier(.2,.9,.3,1); }
+.dt-week-label{ font-family: var(--mono); font-size:10px; color: var(--text-soft); }
+.dt-week-label.is-today{ color: var(--gold); font-weight:700; }
+
+.dt-insights{ display:flex; flex-direction:column; gap:10px; }
+.dt-insight-row{ display:flex; gap:10px; align-items:flex-start; font-size:13.5px; color: var(--text-soft); line-height:1.6; }
+.dt-insight-row .dt-ic{ flex-shrink:0; }
+
+.dt-cal-nav{ display:flex; align-items:center; gap:10px; font-family: var(--mono); font-size:12px; color: var(--text-soft); }
+.dt-cal-btn{ width:26px; height:26px; border-radius:7px; border:1px solid var(--panel-line); background:transparent; color: var(--text); cursor:pointer; transition: all .2s ease; }
+.dt-cal-btn:hover{ border-color: var(--gold); background: rgba(255,255,255,0.05); }
+.dt-cal-weekdays{ display:grid; grid-template-columns: repeat(7,1fr); text-align:center; font-family: var(--mono); font-size:10px; color:#615c78; margin-bottom:6px; }
+.dt-cal-grid{ display:grid; grid-template-columns: repeat(7,1fr); gap:5px; }
+.dt-cal-cell{ position:relative; aspect-ratio:1; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; color: var(--text-soft); background: var(--bg-alt); border:1px solid var(--panel-line); cursor:default; transition: transform .2s ease; }
+.dt-cal-cell.has-data{ cursor:pointer; }
+.dt-cal-cell.has-data:hover{ transform: scale(1.1); z-index:2; border-color: var(--gold); }
+.dt-cal-cell.empty{ background:transparent; border-color:transparent; }
+.dt-cal-cell.is-today{ box-shadow: 0 0 0 2px var(--gold) inset; font-weight:700; color: var(--text); }
+.dt-cal-fill{ position:absolute; inset:0; border-radius:8px; background: linear-gradient(135deg, var(--gold), var(--violet)); pointer-events:none; }
+.dt-cal-cell span{ position:relative; z-index:1; }
+.dt-cal-legend{ display:flex; gap:16px; margin-top:14px; font-family: var(--mono); font-size:10px; color: var(--text-soft); justify-content:center; }
+.dt-cal-legend span{ display:flex; align-items:center; gap:6px; }
+.dt-leg{ width:11px; height:11px; border-radius:3px; background: linear-gradient(135deg, var(--gold), var(--violet)); display:inline-block; }
+
+.dt-badge-grid{ display:grid; grid-template-columns: repeat(3,1fr); gap:12px; }
+@media(max-width:520px){ .dt-badge-grid{ grid-template-columns: repeat(2,1fr); } }
+.dt-badge{ text-align:center; padding:16px 8px; border-radius:12px; background: var(--bg-alt); border:1px solid var(--panel-line); transition: transform .3s cubic-bezier(.2,.9,.3,1.2), border-color .3s ease; }
+.dt-badge:hover{ transform: translateY(-4px) rotateY(8deg); }
+.dt-badge.unlocked{ border-color: rgba(205,166,83,0.5); background: linear-gradient(160deg, var(--gold-soft), rgba(255,255,255,0.01)); }
+.dt-badge-icon{ font-size:24px; margin-bottom:8px; filter: grayscale(1) opacity(0.35); }
+.dt-badge.unlocked .dt-badge-icon{ filter:none; }
+.dt-badge-name{ font-size:11px; font-weight:600; color: var(--text-soft); line-height:1.3; }
+.dt-badge.unlocked .dt-badge-name{ color: var(--text); }
+
+/* ---------- COMING SOON PAGES ---------- */
+.soon-wrap{ max-width:680px; margin:0 auto; padding:120px 28px 100px; text-align:center; }
+@media(max-width:720px){ .soon-wrap{ padding:96px 20px 60px; } }
+.soon-card{ background: var(--panel); border:1px solid var(--panel-line); border-radius:18px; padding:50px 34px; box-shadow:0 30px 70px rgba(0,0,0,0.4); }
+.soon-icon{ font-size:36px; margin-bottom:16px; opacity:0.8; }
+.soon-progress-outer{ width:100%; max-width:280px; margin:26px auto 10px; height:8px; border-radius:999px; background: var(--bg-alt); overflow:hidden; border:1px solid var(--panel-line); }
+.soon-progress-inner{ height:100%; width:62%; border-radius:999px; background: linear-gradient(90deg, var(--violet), var(--gold)); animation: soonPulse 2.4s ease-in-out infinite; }
+@keyframes soonPulse{ 0%,100%{ opacity:0.7; } 50%{ opacity:1; } }
+.soon-progress-label{ font-family: var(--mono); font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; color: var(--text-soft); }
+</style>
+</head>
+<body>
+
+<!-- ================= FLOATING TOOL MENU (present on every view) ================= -->
+<div class="tool-menu" id="toolMenu">
+  <button class="tool-menu-btn" id="toolMenuBtn" aria-label="Open tools menu" aria-expanded="false">
+    <span class="tool-menu-btn-glow"></span>
+    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
+  </button>
+  <div class="tool-menu-panel" id="toolMenuPanel">
+    <div class="tool-menu-head">
+      <span class="tool-menu-eyebrow">Switch Tool</span>
+    </div>
+    <button class="tool-menu-item" data-view="home">
+      <span class="tmi-icon">✎</span>
+      <span class="tmi-text"><span class="tmi-title">HumanScript AI</span><span class="tmi-sub">AI text humanizer</span></span>
+      <span class="tmi-status tmi-active">Active</span>
+    </button>
+    <button class="tool-menu-item" data-view="discipline">
+      <span class="tmi-icon">⚡</span>
+      <span class="tmi-text"><span class="tmi-title">Discipline Tracker</span><span class="tmi-sub">Habits, streaks &amp; stats</span></span>
+      <span class="tmi-status tmi-new">New</span>
+    </button>
+    <button class="tool-menu-item" data-view="routine">
+      <span class="tmi-icon">◷</span>
+      <span class="tmi-text"><span class="tmi-title">Daily Routine Planner</span><span class="tmi-sub">Plan your day, hour by hour</span></span>
+      <span class="tmi-status tmi-soon">Coming Soon</span>
+    </button>
+    <button class="tool-menu-item" data-view="productivity">
+      <span class="tmi-icon">▦</span>
+      <span class="tmi-text"><span class="tmi-title">Productivity Dashboard</span><span class="tmi-sub">All your metrics, one view</span></span>
+      <span class="tmi-status tmi-soon">Coming Soon</span>
+    </button>
+  </div>
+</div>
+
+<div class="view active" id="view-home">
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand">PAV</div>
+    <div class="nav-links">
+      <a href="#generator">Generator</a>
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+      <a href="#feedback">Feedback</a>
+      <a href="#creator">Creator</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <button class="nav-cta" onclick="document.getElementById('generator').scrollIntoView({behavior:'smooth'})">Try it</button>
+  </div>
+</nav>
+
+<section class="hero">
+  <canvas id="bgCanvas"></canvas>
+  <div class="wrap hero-inner">
+    <div class="eyebrow">Notes → Printable Pages</div>
+    <h1 class="headline">
+      Turn Your
+      <span class="morph-word"><span class="morph-layer mono-l">Typed&nbsp;Notes</span><span class="morph-layer hand-l">Handwritten&nbsp;Pages</span></span>
+      <br>Into Something You'd Actually Keep.
+    </h1>
+    <p class="subhead">Paste your notes, pick a handwriting style and paper, and get ruled notebook pages you can print, save, or drop into a journal.</p>
+    <div class="hero-ctas">
+      <button class="btn btn-primary" onclick="document.getElementById('generator').scrollIntoView({behavior:'smooth'})">Generate My Pages</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">See how it works</button>
+    </div>
+    <div class="trust-row">Free to try · Runs in your browser · Nothing uploaded anywhere</div>
+  </div>
+</section>
+
+<section id="generator">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-eyebrow">Live Generator</div>
+      <h2 class="section-title">Paste your notes below</h2>
+      <p class="section-sub">Everything renders locally in your browser — nothing leaves your device.</p>
+    </div>
+
+    <div class="gen-card">
+      <div class="gen-grid">
+        <div>
+          <div class="field-label"><span>Your notes</span><span id="wcInput">0 words</span></div>
+          <div class="upload-row">
+            <label class="small-btn upload-btn" for="fileUpload">⇪ Upload image or PDF</label>
+            <input type="file" id="fileUpload" accept="image/*,application/pdf" style="display:none">
+            <span class="upload-status" id="uploadStatus"></span>
+          </div>
+          <textarea class="input-area" id="notesInput" placeholder="Paste or type your notes, journal entry, or reflections here... (or upload a photo/PDF above)">Appearances are deceptive.
+
+This is a true story, which was told to us at our first customer relation training programme. This story since then has become my guiding light. Here it goes.
+
+A couple of years ago, in a branch of a bank in Chennai, a very old man walked up to the reception desk. The lady behind the counter was busy on a call, the man waited patiently. Once she finished her call, the old man expressed his desire to meet the manager. The lady looked at him and rather curtly informed him that the manager was busy and that he would have to wait.
+
+The old man, clad in a lungi, a kurta, and rubber slippers, smiled and took a seat on the nearby sofa. The receptionist continued her calls. After an hour, the old man calmly and politely enquired if he could meet the manager. On this she snapped at him and replied that the manager was a busy man and the old man would have to wait.
+
+The old man quietly took his seat on the sofa and waited for a couple more hours, enquiring about the manager at intervals. The lady did not even realise when the old man left.</textarea>
+
+          <div class="opt-grid">
+            <div class="opt-block">
+              <label>Handwriting style</label>
+              <select id="fontSelect">
+                <option value="Shadows Into Light" selected>Shadows Into Light — casual</option>
+                <option value="Caveat">Caveat — flowing cursive</option>
+                <option value="Kalam">Kalam — neat school hand</option>
+              </select>
+            </div>
+            <div class="opt-block">
+              <label>Ink color</label>
+              <select id="inkSelect">
+                <option value="#1c3a8a">Blue ballpoint</option>
+                <option value="#1a1a1a">Black</option>
+                <option value="#0b3d24">Green</option>
+              </select>
+            </div>
+          </div>
+          <div class="toggle-row">
+            <label><input type="checkbox" id="ruledToggle" checked> Ruled lines</label>
+            <label><input type="checkbox" id="marginToggle" checked> Red margin line</label>
+            <label><input type="checkbox" id="headerToggle" checked> Page No. / Date box</label>
+            <label><input type="checkbox" id="correctionsToggle" checked> Natural corrections (crossed-out words)</label>
+          </div>
+          <div class="font-preview" id="fontPreview">The quick brown fox</div>
+          <button class="btn btn-primary" style="width:100%; margin-top:16px;" id="generateBtn" onclick="generatePages()">Generate Pages →</button>
+          <div id="genError"></div>
+        </div>
+
+        <div class="preview-col">
+          <div class="field-label" style="width:100%;"><span>Preview</span><span id="pageCountTag"></span></div>
+          <div class="page-preview-wrap" id="previewWrap">
+            <div class="placeholder-note">Your handwritten-style pages will appear here.</div>
+          </div>
+          <div class="demo-actions">
+            <button class="small-btn" id="downloadPdfBtn" onclick="downloadPdf()" disabled>Download all as PDF</button>
+            <button class="small-btn" id="downloadPngBtn" onclick="downloadCurrentPng()" disabled>Download page 1 as PNG</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="disclosure">You can paste text directly, or upload a photo (JPG/PNG) or a PDF and PAV will extract the text on-device using OCR before turning it into handwritten pages. Works best on clear, well-lit, typed or neatly written source pages.</p>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-eyebrow">Features</div>
+      <h2 class="section-title">Built for keeping notes, not faking them</h2>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card"><div class="feat-icon">✎</div><div class="feat-title">Multiple handwriting styles</div><div class="feat-desc">Pick from a few distinct hands so your pages don't all look identical.</div></div>
+      <div class="feat-card"><div class="feat-icon">▤</div><div class="feat-title">Automatic pagination</div><div class="feat-desc">Long notes automatically split across as many ruled pages as needed.</div></div>
+      <div class="feat-card"><div class="feat-icon">⬚</div><div class="feat-title">Ruled or plain paper</div><div class="feat-desc">Toggle ruled lines, a red margin, and a page/date header on or off.</div></div>
+      <div class="feat-card"><div class="feat-icon">⬇</div><div class="feat-title">PDF export</div><div class="feat-desc">Download every page as one print-ready PDF, sized for standard paper.</div></div>
+      <div class="feat-card"><div class="feat-icon">🖉</div><div class="feat-title">Ink color options</div><div class="feat-desc">Blue, black, or green ballpoint — pick what matches your usual pen.</div></div>
+      <div class="feat-card"><div class="feat-icon">🔒</div><div class="feat-title">Runs locally</div><div class="feat-desc">Everything renders in your browser. Your notes are never uploaded.</div></div>
+      <div class="feat-card"><div class="feat-icon">📎</div><div class="feat-title">Upload photos & PDFs</div><div class="feat-desc">Snap a photo or drop in a PDF — on-device OCR pulls out the text automatically.</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-eyebrow">Styles</div>
+      <h2 class="section-title">Pick the hand that feels like yours</h2>
+    </div>
+    <div class="style-chips">
+      <span class="chip" style="font-family:'Shadows Into Light', cursive;">Shadows Into Light — casual</span>
+      <span class="chip" style="font-family:'Caveat', cursive; font-size:18px;">Caveat — flowing cursive</span>
+      <span class="chip" style="font-family:'Kalam', cursive;">Kalam — neat school hand</span>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-eyebrow">FAQ</div>
+      <h2 class="section-title">Questions people ask</h2>
+    </div>
+    <div class="faq-list">
+      <details><summary>What is this actually for?</summary><div class="faq-answer">Turning typed notes, journal entries, or reflections into a printable page that looks and feels handwritten — for people who like the aesthetic of handwritten notes but type faster than they write.</div></details>
+      <details><summary>Can I use this for assignments or homework?</summary><div class="faq-answer">No — PAV isn't built or intended for making typed or AI-written work look handwritten in order to pass it off as your own handwriting for grading or submission. It's meant for personal notes, journaling, and print-friendly formatting.</div></details>
+      <details><summary>Does it upload my notes anywhere?</summary><div class="faq-answer">No. Page generation happens entirely in your browser using canvas rendering — nothing is sent to a server.</div></details>
+      <details><summary>Can it read my handwriting from a photo?</summary><div class="faq-answer">Yes — upload a photo or PDF and PAV runs on-device OCR to pull out the text automatically, then re-renders it in a handwriting style. It's most accurate on clear, well-lit, typed or neatly written pages; messy cursive may need a quick manual cleanup after extraction.</div></details>
+    </div>
+  </div>
+</section>
+
+<section id="feedback">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-eyebrow">Feedback</div>
+      <h2 class="section-title">How Can We Improve?</h2>
+      <p class="section-sub">HumanScript AI is built for the community. Your ideas and feedback help us create better tools and a better experience. If you have any suggestions, feature requests, or improvements in mind, we'd love to hear from you. Together, we can make HumanScript AI smarter, more useful, and more human.</p>
+    </div>
+    <form class="feedback-card" id="feedbackForm">
+      <div class="feedback-row">
+        <div class="feedback-field">
+          <label for="fbName">Name (optional)</label>
+          <input type="text" id="fbName" placeholder="Your name">
+        </div>
+        <div class="feedback-field">
+          <label for="fbEmail">Email (optional)</label>
+          <input type="email" id="fbEmail" placeholder="you@example.com">
+        </div>
+      </div>
+      <div class="feedback-field">
+        <label for="fbMessage">Your feedback</label>
+        <textarea id="fbMessage" class="input-area" style="min-height:120px;" placeholder="Tell us what you'd love to see, or what could work better..." required></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;">Send Feedback →</button>
+      <p class="feedback-note" id="feedbackNote">Opens your email app with this feedback pre-filled, addressed to pavofficialin@gmail.com.</p>
+    </form>
+  </div>
+</section>
+
+<footer id="contact">
+  <div class="wrap">
+    <div class="footer-brand">PAV</div>
+    <div class="footer-note">Notes that look like you wrote them, because you did</div>
+    <div class="footer-contact-label">Get in touch</div>
+    <div class="footer-contact">
+      <a href="mailto:pavofficialin@gmail.com" class="contact-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+        <span>pavofficialin@gmail.com</span>
+      </a>
+      <a href="https://www.instagram.com/pavofficialin/" target="_blank" rel="noopener" class="contact-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.5" y2="6.5"></line></svg>
+        <span>@pavofficialin</span>
+      </a>
+    </div>
+    <div class="footer-copyright">© 2026 PAV. All rights reserved.</div>
+    <div class="footer-credit">Created by Prayas Singh <svg class="heart-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg></div>
+  </div>
+</footer>
+
+<section id="creator">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-eyebrow">About</div>
+      <h2 class="section-title creator-title">Meet the Creator</h2>
+    </div>
+    <div class="creator-card">
+      <p class="creator-bio">I am Prayas Singh. We're constantly working to make HumanScript AI better. If you have any suggestions, feature requests, or ideas that could improve your experience, we'd love to hear from you. Your feedback helps us build a smarter and more human-centered writing tool.</p>
+      <a href="https://www.linkedin.com/in/prayas-kumar-singh-048ab8324/?lipi=urn%3Ali%3Apage%3Ad_flagship3_profile_view_base_contact_details%3BTbFBBn6wQHeYI34eiNwJBA%3D%3D" target="_blank" rel="noopener" class="btn btn-primary creator-linkedin-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+        Connect on LinkedIn
+      </a>
+    </div>
+  </div>
+</section>
+
+</div>
+<!-- ================= /view-home ================= -->
+
+<!-- ================= DISCIPLINE TRACKER ================= -->
+<div class="view" id="view-discipline">
+  <div class="dt-wrap">
+
+    <div class="dt-topbar">
+      <button class="dt-back" data-view="home">← Back to HumanScript AI</button>
+      <div class="dt-topbar-title">
+        <span class="section-eyebrow">Discipline Tracker</span>
+        <h1 class="dt-heading">Build the streak. Keep the streak.</h1>
+      </div>
+    </div>
+
+    <div class="dt-stats-row">
+      <div class="dt-stat-card dt-stat-fire">
+        <div class="dt-stat-icon">🔥</div>
+        <div class="dt-stat-value" id="dtCurrentStreak">0</div>
+        <div class="dt-stat-label">Current streak (days)</div>
+      </div>
+      <div class="dt-stat-card">
+        <div class="dt-stat-icon">🏆</div>
+        <div class="dt-stat-value" id="dtBestStreak">0</div>
+        <div class="dt-stat-label">Best streak (days)</div>
+      </div>
+      <div class="dt-stat-card">
+        <div class="dt-stat-icon">✅</div>
+        <div class="dt-stat-value" id="dtTodayPct">0%</div>
+        <div class="dt-stat-label">Today's progress</div>
+      </div>
+      <div class="dt-stat-card">
+        <div class="dt-stat-icon">📊</div>
+        <div class="dt-stat-value" id="dtMonthPct">0%</div>
+        <div class="dt-stat-label">30-day consistency</div>
+      </div>
+    </div>
+
+    <div class="dt-grid">
+      <!-- LEFT COLUMN -->
+      <div class="dt-col">
+
+        <div class="dt-card">
+          <div class="dt-card-head">
+            <h3>Today's Habits &amp; Goals</h3>
+            <span class="dt-date" id="dtTodayDate"></span>
+          </div>
+          <div class="dt-progress-outer">
+            <div class="dt-progress-inner" id="dtTodayBar" style="width:0%"></div>
+          </div>
+          <div class="dt-habit-list" id="dtHabitList">
+            <!-- habits injected by JS -->
+          </div>
+          <form class="dt-add-form" id="dtAddForm">
+            <input type="text" id="dtNewHabit" class="dt-add-input" placeholder="Add a habit or goal, e.g. Read 20 pages" maxlength="60" required>
+            <div class="dt-color-picker" id="dtColorPicker">
+              <span class="dt-color-dot" data-color="#CDA653" style="background:#CDA653"></span>
+              <span class="dt-color-dot" data-color="#8B7FE0" style="background:#8B7FE0"></span>
+              <span class="dt-color-dot" data-color="#5FB98A" style="background:#5FB98A"></span>
+              <span class="dt-color-dot" data-color="#D46A5C" style="background:#D46A5C"></span>
+            </div>
+            <button type="submit" class="btn btn-primary dt-add-btn">Add</button>
+          </form>
+          <p class="dt-empty-note" id="dtEmptyNote">No habits yet — add your first one above to start your streak.</p>
+        </div>
+
+        <div class="dt-card">
+          <div class="dt-card-head"><h3>This Week</h3></div>
+          <div class="dt-week-chart" id="dtWeekChart"></div>
+        </div>
+
+        <div class="dt-card">
+          <div class="dt-card-head"><h3>Productivity Insights</h3></div>
+          <div class="dt-insights" id="dtInsights"></div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN -->
+      <div class="dt-col">
+
+        <div class="dt-card">
+          <div class="dt-card-head">
+            <h3>Calendar</h3>
+            <div class="dt-cal-nav">
+              <button class="dt-cal-btn" id="dtCalPrev">‹</button>
+              <span id="dtCalLabel"></span>
+              <button class="dt-cal-btn" id="dtCalNext">›</button>
+            </div>
+          </div>
+          <div class="dt-cal-weekdays">
+            <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+          </div>
+          <div class="dt-cal-grid" id="dtCalGrid"></div>
+          <div class="dt-cal-legend">
+            <span><i class="dt-leg" style="opacity:.15"></i>None</span>
+            <span><i class="dt-leg" style="opacity:.45"></i>Partial</span>
+            <span><i class="dt-leg" style="opacity:1"></i>Complete</span>
+          </div>
+        </div>
+
+        <div class="dt-card">
+          <div class="dt-card-head"><h3>Achievement Badges</h3></div>
+          <div class="dt-badge-grid" id="dtBadgeGrid"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= DAILY ROUTINE PLANNER (coming soon) ================= -->
+<div class="view" id="view-routine">
+  <div class="soon-wrap">
+    <button class="dt-back" data-view="home">← Back to HumanScript AI</button>
+    <div class="soon-card">
+      <div class="soon-icon">◷</div>
+      <span class="section-eyebrow">Coming Soon</span>
+      <h2 class="section-title">Daily Routine Planner</h2>
+      <p class="section-sub">Design an hour-by-hour plan for your day, drag tasks into time blocks, and let PAV nudge you when you drift off schedule. We're building it next.</p>
+      <div class="soon-progress-outer"><div class="soon-progress-inner"></div></div>
+      <span class="soon-progress-label">In development</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PRODUCTIVITY DASHBOARD (coming soon) ================= -->
+<div class="view" id="view-productivity">
+  <div class="soon-wrap">
+    <button class="dt-back" data-view="home">← Back to HumanScript AI</button>
+    <div class="soon-card">
+      <div class="soon-icon">▦</div>
+      <span class="section-eyebrow">Coming Soon</span>
+      <h2 class="section-title">Productivity Dashboard</h2>
+      <p class="section-sub">One futuristic view combining your habits, routines, and notes activity — trends, focus scores, and weekly reviews in a single glass panel.</p>
+      <div class="soon-progress-outer"><div class="soon-progress-inner" style="width:38%"></div></div>
+      <span class="soon-progress-label">In development</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- background canvas ---------- */
+(function(){
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  let w,h;
+  const heroEl = document.querySelector('.hero');
+  function sizeToHero(){ canvas.style.width = heroEl.offsetWidth+'px'; canvas.style.height = heroEl.offsetHeight+'px'; w=canvas.width=canvas.offsetWidth; h=canvas.height=canvas.offsetHeight; }
+  sizeToHero();
+  window.addEventListener('resize', sizeToHero);
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const glyphs = ['0','1','{','}','<','/','>',';'];
+  const words = ['note','write','keep','page','ink'];
+  const N = reduce ? 0 : 40;
+  const particles = Array.from({length:N}, () => spawn());
+  function spawn(){
+    return { x: Math.random()*w, y: Math.random()*h + h, speed: 0.15+Math.random()*0.35,
+      char: Math.random()<0.6 ? glyphs[Math.floor(Math.random()*glyphs.length)] : words[Math.floor(Math.random()*words.length)],
+      size: 11+Math.random()*10, phase: Math.random()*Math.PI*2, drift: (Math.random()-0.5)*0.3 };
+  }
+  function tick(){
+    ctx.clearRect(0,0,w,h);
+    particles.forEach(p=>{
+      p.y -= p.speed; p.x += Math.sin(p.phase + p.y*0.01)*p.drift; p.phase += 0.01;
+      if(p.y < -20){ Object.assign(p, spawn()); p.y = h+20; }
+      const cVal = 1 - (p.y / h);
+      const r = Math.round(139 + (205-139)*cVal), g = Math.round(127 + (166-127)*cVal), b = Math.round(224 + (83-224)*cVal);
+      ctx.font = (cVal>0.5? '':'') + p.size + 'px ' + (cVal>0.5 ? "'Kalam', cursive" : "'JetBrains Mono', monospace");
+      ctx.fillStyle = `rgba(${r},${g},${b},${0.22+0.18*Math.sin(p.phase)})`;
+      ctx.fillText(p.char, p.x, p.y);
+    });
+    if(!reduce) requestAnimationFrame(tick);
+  }
+  if(!reduce) requestAnimationFrame(tick);
+})();
+
+/* ---------- file upload: image / PDF -> text (OCR, all on-device) ---------- */
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+document.getElementById('fileUpload').addEventListener('change', handleFileUpload);
+
+async function handleFileUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('uploadStatus');
+  const errBox = document.getElementById('genError');
+  errBox.innerHTML = '';
+  statusEl.className = 'upload-status busy';
+  statusEl.textContent = 'Reading file…';
+
+  try{
+    let extractedText = '';
+    if(file.type === 'application/pdf'){
+      extractedText = await extractTextFromPdf(file, statusEl);
+    } else if(file.type.startsWith('image/')){
+      extractedText = await extractTextFromImage(file, statusEl);
+    } else {
+      throw new Error('Please upload an image (JPG/PNG) or a PDF file.');
+    }
+
+    extractedText = extractedText.trim();
+    if(!extractedText){
+      statusEl.className = 'upload-status';
+      statusEl.textContent = '';
+      errBox.innerHTML = '<div class="err">Couldn\'t find readable text in that file. Try a clearer photo or a different PDF.</div>';
+      return;
+    }
+
+    const textarea = document.getElementById('notesInput');
+    textarea.value = extractedText;
+    document.getElementById('wcInput').textContent = wc(textarea.value) + ' words';
+    statusEl.className = 'upload-status ok';
+    statusEl.textContent = '✓ Text extracted from "' + file.name + '" — review it below before generating.';
+  }catch(err){
+    statusEl.className = 'upload-status';
+    statusEl.textContent = '';
+    errBox.innerHTML = '<div class="err">Couldn\'t read that file: ' + err.message + '</div>';
+  }finally{
+    e.target.value = '';
+  }
+}
+
+async function extractTextFromPdf(file, statusEl){
+  statusEl.textContent = 'Reading PDF…';
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let text = '';
+  for(let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const pageText = content.items.map(it => it.str).join(' ').trim();
+    if(pageText){
+      statusEl.textContent = `Reading PDF page ${p} of ${pdf.numPages}…`;
+      text += pageText + '\n\n';
+    } else {
+      // no embedded text layer — page is likely a scanned image, so OCR it
+      statusEl.textContent = `Page ${p} of ${pdf.numPages} looks scanned — running OCR…`;
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const { data: { text: ocrText } } = await Tesseract.recognize(canvas, 'eng');
+      text += ocrText.trim() + '\n\n';
+    }
+  }
+  return text;
+}
+
+async function extractTextFromImage(file, statusEl){
+  const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+    logger: m=>{
+      if(m.status === 'recognizing text'){
+        statusEl.textContent = `Running OCR… ${Math.round(m.progress * 100)}%`;
+      } else if(m.status){
+        statusEl.textContent = m.status + '…';
+      }
+    }
+  });
+  return text;
+}
+
+/* ---------- word count + font preview ---------- */
+function wc(t){ const s=t.trim(); return s? s.split(/\s+/).length : 0; }
+document.getElementById('notesInput').addEventListener('input', e=>{
+  document.getElementById('wcInput').textContent = wc(e.target.value) + ' words';
+});
+function updateFontPreview(){
+  const f = document.getElementById('fontSelect').value;
+  const p = document.getElementById('fontPreview');
+  p.style.fontFamily = `'${f}', cursive`;
+}
+document.getElementById('fontSelect').addEventListener('change', updateFontPreview);
+updateFontPreview();
+document.getElementById('wcInput').textContent = wc(document.getElementById('notesInput').value) + ' words';
+
+/* ---------- page generation ---------- */
+let generatedCanvases = [];
+
+function wrapText(ctx, text, maxWidth){
+  const paragraphs = text.split('\n');
+  const lines = [];
+  paragraphs.forEach(para=>{
+    if(para.trim() === ''){ lines.push(''); return; }
+    const words = para.split(' ');
+    let current = '';
+    words.forEach(word=>{
+      const test = current ? current + ' ' + word : word;
+      if(ctx.measureText(test).width > maxWidth && current){
+        lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    });
+    if(current) lines.push(current);
+  });
+  return lines;
+}
+
+function pseudoRandom(seed){ const x = Math.sin(seed*999.13)*10000; return x - Math.floor(x); }
+
+function drawLineWithCorrections(ctx, line, x, y, ink, lineSeed, correctionsOn){
+  const words = line.split(' ').filter(w => w.length > 0);
+  if(words.length === 0) return;
+  let strikeIdx = -1;
+  if(correctionsOn && words.length > 3 && pseudoRandom(lineSeed + 0.37) < 0.16){
+    strikeIdx = 1 + Math.floor(pseudoRandom(lineSeed + 0.71) * (words.length - 2));
+  }
+  let cx = x;
+  words.forEach((word, idx)=>{
+    ctx.fillText(word, cx, y);
+    const wordWidth = ctx.measureText(word).width;
+    if(idx === strikeIdx){
+      ctx.save();
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const tilt = (pseudoRandom(lineSeed + 1.1) - 0.5) * 3;
+      ctx.moveTo(cx - 2, y - 7 + tilt);
+      ctx.lineTo(cx + wordWidth + 2, y - 8 - tilt);
+      ctx.stroke();
+      ctx.restore();
+    }
+    cx += ctx.measureText(word + ' ').width;
+  });
+}
+
+function drawPage(lines, startIdx, linesPerPage, opts, pageNum){
+  const W = 850, H = 1160;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // paper
+  ctx.fillStyle = '#FBF9F1';
+  ctx.fillRect(0,0,W,H);
+
+  const topMargin = 90, lineHeight = 34, leftMargin = 96, rightPad = 50;
+
+  if(opts.ruled){
+    ctx.strokeStyle = 'rgba(70,90,160,0.28)';
+    ctx.lineWidth = 1;
+    for(let y = topMargin; y < H - 40; y += lineHeight){
+      ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(W-30, y); ctx.stroke();
+    }
+  }
+  if(opts.margin){
+    ctx.strokeStyle = 'rgba(190,60,60,0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(leftMargin-14, 20); ctx.lineTo(leftMargin-14, H-20); ctx.stroke();
+  }
+  if(opts.header){
+    ctx.strokeStyle = 'rgba(120,120,120,0.4)';
+    ctx.strokeRect(W-160, 24, 60, 26);
+    ctx.strokeRect(W-92, 24, 68, 26);
+    ctx.fillStyle = 'rgba(90,90,90,0.7)';
+    ctx.font = "10px 'Inter', sans-serif";
+    ctx.fillText('Page No.', W-158, 20);
+    ctx.fillText('Date', W-90, 20);
+    ctx.font = `16px '${opts.font}', cursive`;
+    ctx.fillStyle = opts.ink;
+    ctx.fillText(String(pageNum), W-135, 42);
+  }
+
+  ctx.fillStyle = opts.ink;
+  ctx.font = `22px '${opts.font}', cursive`;
+  ctx.textBaseline = 'alphabetic';
+
+  let y = topMargin - 8;
+  for(let i = startIdx; i < Math.min(startIdx + linesPerPage, lines.length); i++){
+    const jitter = (Math.sin(i*12.9)*0.6);
+    ctx.save();
+    ctx.translate(leftMargin + jitter, y);
+    drawLineWithCorrections(ctx, lines[i], 0, 0, opts.ink, i, opts.corrections);
+    ctx.restore();
+    y += lineHeight;
+  }
+  return canvas;
+}
+
+function generatePages(){
+  const text = document.getElementById('notesInput').value.trim();
+  const errBox = document.getElementById('genError');
+  errBox.innerHTML = '';
+  if(!text){ errBox.innerHTML = '<div class="err">Paste some notes first.</div>'; return; }
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true; btn.textContent = 'Generating…';
+
+  try{
+    const opts = {
+      font: document.getElementById('fontSelect').value,
+      ink: document.getElementById('inkSelect').value,
+      ruled: document.getElementById('ruledToggle').checked,
+      margin: document.getElementById('marginToggle').checked,
+      header: document.getElementById('headerToggle').checked,
+      corrections: document.getElementById('correctionsToggle').checked
+    };
+    const measureCanvas = document.createElement('canvas');
+    const mctx = measureCanvas.getContext('2d');
+    mctx.font = `22px '${opts.font}', cursive`;
+    const maxWidth = 850 - 96 - 50;
+    const lines = wrapText(mctx, text, maxWidth);
+
+    const linesPerPage = Math.floor((1160 - 90 - 40) / 34);
+    generatedCanvases = [];
+    for(let start = 0; start < lines.length; start += linesPerPage){
+      const pageNum = generatedCanvases.length + 1;
+      generatedCanvases.push(drawPage(lines, start, linesPerPage, opts, pageNum));
+    }
+    if(generatedCanvases.length === 0){
+      generatedCanvases.push(drawPage([''], 0, linesPerPage, opts, 1));
+    }
+
+    const wrapEl = document.getElementById('previewWrap');
+    wrapEl.innerHTML = '';
+    generatedCanvases.forEach(c=> wrapEl.appendChild(c));
+    document.getElementById('pageCountTag').textContent = generatedCanvases.length + ' page' + (generatedCanvases.length===1?'':'s');
+    document.getElementById('downloadPdfBtn').disabled = false;
+    document.getElementById('downloadPngBtn').disabled = false;
+    document.getElementById('downloadPngBtn').textContent = 'Download page 1 as PNG';
+  }catch(err){
+    errBox.innerHTML = '<div class="err">Generation failed: ' + err.message + '</div>';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Generate Pages →';
+  }
+}
+
+function downloadCurrentPng(){
+  if(!generatedCanvases.length) return;
+  const link = document.createElement('a');
+  link.download = 'pav-page-1.png';
+  link.href = generatedCanvases[0].toDataURL('image/png');
+  link.click();
+}
+
+function downloadPdf(){
+  if(!generatedCanvases.length || !window.jspdf) return;
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [612, 792] });
+  generatedCanvases.forEach((canvas, idx)=>{
+    const imgData = canvas.toDataURL('image/png');
+    if(idx > 0) pdf.addPage();
+    pdf.addImage(imgData, 'PNG', 0, 0, 612, 792);
+  });
+  pdf.save('pav-notes.pdf');
+}
+</script>
+
+<script>
+/* =========================================================
+   FLOATING TOOL MENU + VIEW SWITCHING
+   ========================================================= */
+(function(){
+  const menu = document.getElementById('toolMenu');
+  const btn = document.getElementById('toolMenuBtn');
+  const panel = document.getElementById('toolMenuPanel');
+  const items = document.querySelectorAll('.tool-menu-item, .dt-back');
+
+  function openMenu(){ menu.classList.add('open'); btn.setAttribute('aria-expanded','true'); }
+  function closeMenu(){ menu.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
+
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    menu.classList.contains('open') ? closeMenu() : openMenu();
+  });
+  document.addEventListener('click', (e)=>{
+    if(!menu.contains(e.target)) closeMenu();
+  });
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeMenu(); });
+
+  items.forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const target = el.getAttribute('data-view');
+      if(target) switchView(target);
+      closeMenu();
+    });
+  });
+
+  window.switchView = function(name){
+    document.querySelectorAll('.view').forEach(v=> v.classList.remove('active'));
+    const el = document.getElementById('view-' + name);
+    if(el) el.classList.add('active');
+    window.scrollTo({ top:0, behavior:'instant' in window ? 'instant' : 'auto' });
+
+    document.querySelectorAll('.tool-menu-item').forEach(mi=>{
+      const view = mi.getAttribute('data-view');
+      const isCurrent = view === name;
+      mi.classList.toggle('dt-current', isCurrent);
+      const status = mi.querySelector('.tmi-status');
+      if(!status || status.classList.contains('tmi-soon')) return; // "Coming Soon" tools keep their label
+      if(isCurrent){ status.textContent = 'Active'; status.className = 'tmi-status tmi-active'; status.style.display = ''; }
+      else if(view === 'discipline'){ status.textContent = 'New'; status.className = 'tmi-status tmi-new'; status.style.display = ''; }
+      else { status.style.display = 'none'; }
+    });
+
+    if(name === 'discipline') renderDiscipline();
+  };
+})();
+
+/* =========================================================
+   DISCIPLINE TRACKER
+   ========================================================= */
+(function(){
+  const STORAGE_KEY = 'pav_discipline_v1';
+  const HABIT_COLORS = ['#CDA653','#8B7FE0','#5FB98A','#D46A5C'];
+
+  function loadData(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return { habits: [], logs: {} };
+  }
+  function saveData(d){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }catch(e){}
+  }
+  function todayStr(d){
+    const dt = d || new Date();
+    return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+  }
+  function addDays(dateStr, n){
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    return todayStr(d);
+  }
+
+  let data = loadData();
+  let selectedColor = HABIT_COLORS[0];
+  let calCursor = new Date(); // month currently shown in calendar
+
+  const BADGES = [
+    { id:'first', icon:'🌱', name:'Getting Started', test: s => s.totalCompletions >= 1 },
+    { id:'streak3', icon:'🔥', name:'3-Day Streak', test: s => s.bestStreak >= 3 },
+    { id:'streak7', icon:'⚡', name:'7-Day Streak', test: s => s.bestStreak >= 7 },
+    { id:'streak14', icon:'🚀', name:'14-Day Streak', test: s => s.bestStreak >= 14 },
+    { id:'streak30', icon:'👑', name:'30-Day Legend', test: s => s.bestStreak >= 30 },
+    { id:'builder', icon:'🧱', name:'Habit Builder', test: s => s.habitCount >= 5 },
+    { id:'perfectweek', icon:'💯', name:'Perfect Week', test: s => s.perfectWeek },
+    { id:'century', icon:'🏅', name:'100 Tasks Done', test: s => s.totalCompletions >= 100 },
+    { id:'consistent', icon:'📈', name:'Consistent Month', test: s => s.monthPct >= 80 }
+  ];
+
+  function habitsActiveOn(dateStr){
+    return data.habits.filter(h => h.createdAt <= dateStr);
+  }
+  function dayStats(dateStr){
+    const active = habitsActiveOn(dateStr);
+    const log = data.logs[dateStr] || {};
+    const done = active.filter(h => log[h.id]).length;
+    return { active: active.length, done, pct: active.length ? Math.round(done/active.length*100) : 0 };
+  }
+  function isDayComplete(dateStr){
+    const s = dayStats(dateStr);
+    return s.active > 0 && s.done === s.active;
+  }
+
+  function computeStreaks(){
+    if(!data.habits.length) return { current:0, best:0 };
+    let current = 0;
+    let cursor = todayStr();
+    const todayIncomplete = !isDayComplete(cursor);
+    if(todayIncomplete) cursor = addDays(cursor, -1); // don't break streak just because today isn't done yet
+    while(isDayComplete(cursor)){
+      current++;
+      cursor = addDays(cursor, -1);
+    }
+    // best streak: scan all days that have logs, plus today
+    const allDates = Object.keys(data.logs).sort();
+    let best = 0, run = 0, prev = null;
+    allDates.forEach(d=>{
+      if(isDayComplete(d)){
+        if(prev && addDays(prev,1) === d) run++; else run = 1;
+        best = Math.max(best, run);
+      } else { run = 0; }
+      prev = d;
+    });
+    best = Math.max(best, current);
+    return { current, best };
+  }
+
+  function last7Days(){
+    const out = [];
+    for(let i=6;i>=0;i--) out.push(addDays(todayStr(), -i));
+    return out;
+  }
+  function last30Days(){
+    const out = [];
+    for(let i=29;i>=0;i--) out.push(addDays(todayStr(), -i));
+    return out;
+  }
+
+  function computeSummary(){
+    const streaks = computeStreaks();
+    const totalCompletions = Object.values(data.logs).reduce((sum,log)=> sum + Object.values(log).filter(Boolean).length, 0);
+    const week = last7Days();
+    const weekPct = Math.round(week.reduce((s,d)=> s + dayStats(d).pct, 0) / 7);
+    const month = last30Days();
+    const monthPct = Math.round(month.reduce((s,d)=> s + dayStats(d).pct, 0) / 30);
+    const perfectWeek = week.every(d => { const s = dayStats(d); return s.active > 0 && s.pct === 100; });
+    return {
+      currentStreak: streaks.current, bestStreak: streaks.best,
+      totalCompletions, habitCount: data.habits.length,
+      weekPct, monthPct, perfectWeek,
+      todayPct: dayStats(todayStr()).pct
+    };
+  }
+
+  function renderStats(summary){
+    animateCount(document.getElementById('dtCurrentStreak'), summary.currentStreak);
+    animateCount(document.getElementById('dtBestStreak'), summary.bestStreak);
+    document.getElementById('dtTodayPct').textContent = summary.todayPct + '%';
+    document.getElementById('dtMonthPct').textContent = summary.monthPct + '%';
+  }
+
+  function animateCount(el, target){
+    const start = parseInt(el.textContent) || 0;
+    if(start === target){ el.textContent = target; return; }
+    const dur = 500, t0 = performance.now();
+    function step(t){
+      const p = Math.min(1, (t - t0) / dur);
+      el.textContent = Math.round(start + (target - start) * p);
+      if(p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function renderToday(){
+    const list = document.getElementById('dtHabitList');
+    const date = todayStr();
+    const log = data.logs[date] || {};
+    list.innerHTML = '';
+    const active = habitsActiveOn(date);
+    document.getElementById('dtEmptyNote').style.display = active.length ? 'none' : 'block';
+
+    active.forEach(h=>{
+      const done = !!log[h.id];
+      const row = document.createElement('div');
+      row.className = 'dt-habit' + (done ? ' done' : '');
+      row.innerHTML = `
+        <button class="dt-check" data-id="${h.id}" aria-label="Toggle habit">${done ? '✓' : ''}</button>
+        <span class="dt-habit-name" style="border-left:3px solid ${h.color}; padding-left:9px;">${escapeHtml(h.name)}</span>
+        <span class="dt-habit-streak">${habitStreak(h.id)}d streak</span>
+        <button class="dt-habit-del" data-del="${h.id}" aria-label="Delete habit">✕</button>
+      `;
+      list.appendChild(row);
+    });
+
+    const stats = dayStats(date);
+    document.getElementById('dtTodayBar').style.width = stats.pct + '%';
+    document.getElementById('dtTodayDate').textContent = new Date().toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+  }
+
+  function habitStreak(habitId){
+    let run = 0, cursor = todayStr();
+    const log0 = data.logs[cursor] || {};
+    if(!log0[habitId]) cursor = addDays(cursor, -1);
+    while(true){
+      const log = data.logs[cursor];
+      if(log && log[habitId]){ run++; cursor = addDays(cursor, -1); } else break;
+    }
+    return run;
+  }
+
+  function escapeHtml(s){
+    const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+  }
+
+  function toggleHabit(id){
+    const date = todayStr();
+    if(!data.logs[date]) data.logs[date] = {};
+    data.logs[date][id] = !data.logs[date][id];
+    saveData(data);
+    renderDiscipline();
+  }
+  function deleteHabit(id){
+    data.habits = data.habits.filter(h => h.id !== id);
+    Object.values(data.logs).forEach(log => delete log[id]);
+    saveData(data);
+    renderDiscipline();
+  }
+  function addHabit(name){
+    data.habits.push({ id: 'h_' + Date.now() + '_' + Math.floor(Math.random()*999), name, color: selectedColor, createdAt: todayStr() });
+    saveData(data);
+    renderDiscipline();
+  }
+
+  function renderWeekChart(){
+    const wrap = document.getElementById('dtWeekChart');
+    wrap.innerHTML = '';
+    const days = last7Days();
+    const todayS = todayStr();
+    days.forEach(d=>{
+      const pct = dayStats(d).pct;
+      const label = new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday:'narrow' });
+      const col = document.createElement('div');
+      col.className = 'dt-week-col';
+      col.innerHTML = `
+        <div class="dt-week-bar-track"><div class="dt-week-bar-fill" style="height:0%"></div></div>
+        <span class="dt-week-label ${d===todayS ? 'is-today' : ''}">${label}</span>
+      `;
+      wrap.appendChild(col);
+      requestAnimationFrame(()=>{ col.querySelector('.dt-week-bar-fill').style.height = pct + '%'; });
+    });
+  }
+
+  function renderCalendar(){
+    const grid = document.getElementById('dtCalGrid');
+    const label = document.getElementById('dtCalLabel');
+    grid.innerHTML = '';
+    const year = calCursor.getFullYear(), month = calCursor.getMonth();
+    label.textContent = calCursor.toLocaleDateString(undefined, { month:'long', year:'numeric' });
+    const firstDow = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    const todayS = todayStr();
+
+    for(let i=0;i<firstDow;i++){
+      const empty = document.createElement('div');
+      empty.className = 'dt-cal-cell empty';
+      grid.appendChild(empty);
+    }
+    for(let day=1; day<=daysInMonth; day++){
+      const dateStr = year + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+      const stats = dayStats(dateStr);
+      const cell = document.createElement('div');
+      cell.className = 'dt-cal-cell' + (stats.active ? ' has-data' : '') + (dateStr === todayS ? ' is-today' : '');
+      if(stats.active){
+        cell.title = `${stats.done}/${stats.active} habits done`;
+        cell.innerHTML = `<div class="dt-cal-fill" style="opacity:${Math.max(0.12, stats.pct/100)}"></div><span>${day}</span>`;
+      } else {
+        cell.innerHTML = `<span>${day}</span>`;
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  function renderBadges(summary){
+    const grid = document.getElementById('dtBadgeGrid');
+    grid.innerHTML = '';
+    BADGES.forEach(b=>{
+      const unlocked = b.test(summary);
+      const el = document.createElement('div');
+      el.className = 'dt-badge' + (unlocked ? ' unlocked' : '');
+      el.innerHTML = `<div class="dt-badge-icon">${b.icon}</div><div class="dt-badge-name">${b.name}</div>`;
+      grid.appendChild(el);
+    });
+  }
+
+  function renderInsights(summary){
+    const box = document.getElementById('dtInsights');
+    const rows = [];
+    if(!data.habits.length){
+      rows.push(['💡','Add your first habit to start tracking streaks and unlocking insights.']);
+    } else {
+      if(summary.currentStreak >= 3) rows.push(['🔥', `You're on a ${summary.currentStreak}-day streak — don't break the chain today.`]);
+      else if(summary.todayPct < 100) rows.push(['⏳', `You've completed ${summary.todayPct}% of today's habits. Finish the rest to keep your streak alive.`]);
+      if(summary.weekPct >= 80) rows.push(['📈', `Strong week — ${summary.weekPct}% average completion over the last 7 days.`]);
+      else if(summary.weekPct < 50) rows.push(['📉', `This week is at ${summary.weekPct}% completion. Try tackling your easiest habit first each morning.`]);
+      if(summary.bestStreak > summary.currentStreak && summary.bestStreak > 0) rows.push(['🏆', `Your best streak is ${summary.bestStreak} days — you've done it before, you can beat it.`]);
+      if(summary.perfectWeek) rows.push(['💯', `Perfect week! Every habit, every day for the last 7 days.`]);
+      if(!rows.length) rows.push(['✅', `You're tracking ${summary.habitCount} habit${summary.habitCount===1?'':'s'} with ${summary.monthPct}% consistency this month.`]);
+    }
+    box.innerHTML = rows.map(([icon,text]) => `<div class="dt-insight-row"><span class="dt-ic">${icon}</span><span>${text}</span></div>`).join('');
+  }
+
+  window.renderDiscipline = function(){
+    const summary = computeSummary();
+    renderStats(summary);
+    renderToday();
+    renderWeekChart();
+    renderCalendar();
+    renderBadges(summary);
+    renderInsights(summary);
+  };
+
+  // events
+  document.getElementById('dtHabitList').addEventListener('click', (e)=>{
+    const checkBtn = e.target.closest('.dt-check');
+    if(checkBtn){ toggleHabit(checkBtn.getAttribute('data-id')); return; }
+    const delBtn = e.target.closest('.dt-habit-del');
+    if(delBtn){ deleteHabit(delBtn.getAttribute('data-del')); return; }
+  });
+  document.getElementById('dtAddForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const input = document.getElementById('dtNewHabit');
+    const name = input.value.trim();
+    if(!name) return;
+    addHabit(name);
+    input.value = '';
+  });
+  document.getElementById('dtColorPicker').addEventListener('click', (e)=>{
+    const dot = e.target.closest('.dt-color-dot');
+    if(!dot) return;
+    selectedColor = dot.getAttribute('data-color');
+    document.querySelectorAll('.dt-color-dot').forEach(d=> d.classList.remove('selected'));
+    dot.classList.add('selected');
+  });
+  document.querySelector('.dt-color-dot').classList.add('selected');
+  document.getElementById('dtCalPrev').addEventListener('click', ()=>{
+    calCursor.setMonth(calCursor.getMonth()-1); renderCalendar();
+  });
+  document.getElementById('dtCalNext').addEventListener('click', ()=>{
+    calCursor.setMonth(calCursor.getMonth()+1); renderCalendar();
+  });
+})();
+
+/* =========================================================
+   FEEDBACK FORM (mailto — no backend, matches "runs locally")
+   ========================================================= */
+document.getElementById('feedbackForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const name = document.getElementById('fbName').value.trim();
+  const email = document.getElementById('fbEmail').value.trim();
+  const message = document.getElementById('fbMessage').value.trim();
+  const note = document.getElementById('feedbackNote');
+  if(!message){ return; }
+  const subject = 'PAV Feedback' + (name ? ' from ' + name : '');
+  const bodyLines = [message, '', '—', name ? 'Name: ' + name : '', email ? 'Email: ' + email : ''].filter(Boolean);
+  const mailto = 'mailto:pavofficialin@gmail.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyLines.join('\n'));
+  window.location.href = mailto;
+  note.textContent = '✓ Opening your email app with this feedback pre-filled...';
+  note.style.color = 'var(--green)';
+});
+</script>
+</body>
+</html>
